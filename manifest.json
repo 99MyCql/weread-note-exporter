@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "微信读书笔记导出器",
+  "version": "1.0.0",
+  "description": "适用于微信读书网站，支持更个性化、更完善的笔记导出",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://weread.qq.com/*"
+  ],
+  "action": {
+    "default_popup": "dist/index.html",
+    "default_title": "导出微信读书笔记"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://weread.qq.com/web/reader/*"],
+      "js": ["dist/content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["dist/assets/*"],
+      "matches": ["https://weread.qq.com/*"]
+    }
+  ]
+}
