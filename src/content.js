@@ -68,16 +68,21 @@ function extractChapterNotes() {
       const referenceElement = noteItem.querySelector(CSS_SELECTORS.NOTE_REFERENCE);
       const reference = referenceElement ? referenceElement.textContent?.trim() : '';
 
-      if (noteContent) {
+      let finalContent = noteContent;
+      let finalReference = reference;
+
+      // 处理只有text没有reference的情况（此时text为原文引用）
+      if (noteContent && !referenceElement) {
+        finalContent = '';
+        finalReference = noteContent;
+      }
+
+      if (finalContent || finalReference) {
         notes.push({
           noteId: `note_${chapterUid}_${noteIndex}`,
-          content: noteContent,
-          abstract: reference,
-          createTime: Date.now(),
-          range: {
-            start: noteIndex,
-            end: noteIndex + noteContent.length
-          }
+          content: finalContent,
+          quote: finalReference,
+          createTime: Date.now()
         });
       }
     });

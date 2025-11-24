@@ -26,7 +26,7 @@ export const generateExportText = (chapters: Chapter[], config: ExportConfig): s
             noteText = noteText.replace(/{{chapter}}/g, chapter.title);
 
             // Replace reference placeholder
-            const referenceText = (config.includeReference && note.abstract) ? note.abstract : '';
+            const referenceText = (config.includeReference && note.quote) ? note.quote : '';
             noteText = noteText.replace(/{{reference}}/g, referenceText);
 
             output += noteText + '\n\n';

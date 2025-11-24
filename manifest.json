@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "微信读书笔记导出器",
   "version": "1.0.0",
-  "description": "适用于微信读书网站，支持更个性化、更完善的笔记导出",
+  "description": "适用于微信读书网页版，提供更个性化、更完善的笔记导出",
   "permissions": [
     "activeTab",
     "scripting"

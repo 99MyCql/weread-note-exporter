@@ -1,12 +1,8 @@
 export interface Note {
     noteId: string;
     content: string;
+    quote: string;
     createTime: number;
-    range: {
-        start: number;
-        end: number;
-    };
-    abstract?: string; // Sometimes context around the highlight
 }
 
 export interface Chapter {

@@ -49,9 +49,9 @@ const ChapterItem: React.FC<{
                 {new Date(note.createTime).toLocaleDateString()}
               </p>
               <p className="text-gray-800 leading-relaxed">{note.content}</p>
-              {note.abstract && (
+              {note.quote && (
                 <div className="mt-1.5 p-2 bg-blue-50 rounded border border-blue-200 text-xs">
-                  <p className="text-blue-700">原文: {note.abstract}</p>
+                  <p className="text-blue-700">原文: {note.quote}</p>
                 </div>
               )}
             </div>
