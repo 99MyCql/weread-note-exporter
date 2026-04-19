@@ -3,6 +3,7 @@ export interface Note {
     content: string;
     quote: string;
     createTime: number;
+    isDuplicate?: boolean; // 新增：标识该记录是否为冗余划线
 }
 
 export interface Chapter {
@@ -17,6 +18,7 @@ export interface ExportConfig {
     includeTitle: boolean;
     includeChapter: boolean;
     includeReference: boolean;
+    removeDuplicates: boolean; // 新增：是否去重冗余的划线
     formatStr: string;
     fileFormat: 'markdown' | 'txt';
 }

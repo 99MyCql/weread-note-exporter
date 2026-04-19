@@ -175,13 +175,33 @@ const App: React.FC = () => {
   const [expandedChapters, setExpandedChapters] = useState<Set<number>>(new Set());
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
 
+  // Export Config
+  const [exportConfig, setExportConfig] = useState<ExportConfig>({
+    includeTitle: true,
+    includeChapter: true,
+    includeReference: true,
+    removeDuplicates: false, // 默认关闭去重
+    formatStr: '- {{createTime}}\n{{content}}\n  > 原文：{{reference}}',
+    fileFormat: 'markdown'
+  });
+
+  // 根据当前配置计算最终展示和导出的章节数据（如果开启去重则过滤掉 isDuplicate 的冗余纯划线）
+  const processedChapters = useMemo(() => {
+    if (!exportConfig.removeDuplicates) return chapters;
+    
+    return chapters.map(c => ({
+      ...c,
+      notes: c.notes.filter(n => !n.isDuplicate)
+    }));
+  }, [chapters, exportConfig.removeDuplicates]);
+
   // 预计算每个 header 的子节点集合和总笔记数
   const headerStats = useMemo(() => {
     const stats = new Map<number, { totalNotes: number; childUids: Set<number> }>();
     // 每次遇到 header，将其后续的有笔记项累计进所有祖先 header
     const activeHeaders: { uid: number; level: number }[] = [];
 
-    for (const chapter of chapters) {
+    for (const chapter of processedChapters) {
       // 清除同级及更深的斧头（层级变浅时子级失效）
       while (activeHeaders.length > 0 && activeHeaders[activeHeaders.length - 1].level >= chapter.level) {
         activeHeaders.pop();
@@ -203,17 +223,7 @@ const App: React.FC = () => {
       }
     }
     return stats;
-  }, [chapters]);
-  
-  // Export Config
-  const [exportConfig, setExportConfig] = useState<ExportConfig>({
-    includeTitle: true,
-    includeChapter: true,
-    includeReference: true,
-    formatStr: '- {{createTime}}\n{{content}}\n  > 原文：{{reference}}',
-    fileFormat: 'markdown'
-  });
-
+  }, [processedChapters]);
 
   useEffect(() => {
     // 设置错误处理器的语言
@@ -277,6 +287,12 @@ const App: React.FC = () => {
         .map((c: Chapter) => c.chapterUid));
       setSelectedChapterIds(notesChapterIds as Set<number>);
 
+      // 默认折叠所有目录层级标题
+      const headerIds = new Set(fetchedChapters
+        .filter((c: Chapter) => c.notes.length === 0)
+        .map((c: Chapter) => c.chapterUid));
+      setCollapsedHeaders(headerIds as Set<number>);
+
       // 默认全部折叠
       setExpandedChapters(new Set());
 
@@ -329,7 +345,7 @@ const App: React.FC = () => {
   };
 
   const toggleAll = () => {
-    const notesChapters = chapters.filter(c => c.notes.length > 0);
+    const notesChapters = processedChapters.filter(c => c.notes.length > 0);
     if (selectedChapterIds.size === notesChapters.length) {
       setSelectedChapterIds(new Set());
     } else {
@@ -343,7 +359,7 @@ const App: React.FC = () => {
     // 记录当前正被折叠的各层级 header（level -> true）
     const collapsedAtLevel = new Map<number, boolean>();
 
-    for (const chapter of chapters) {
+    for (const chapter of processedChapters) {
       // 清除比当前层级更深的折叠状态（遇到同级或更浅的新节点时，子级折叠失效）
       for (const [lvl] of collapsedAtLevel) {
         if (lvl >= chapter.level) collapsedAtLevel.delete(lvl);
@@ -364,12 +380,12 @@ const App: React.FC = () => {
       }
     }
     return result;
-  }, [chapters, collapsedHeaders]);
+  }, [processedChapters, collapsedHeaders]);
 
   const getFilteredChapters = useCallback(() => {
     // 导出时不受折叠影响，仅按勾选过滤（header 节点透传给 formatter 处理）
-    return chapters.filter(c => c.notes.length === 0 || selectedChapterIds.has(c.chapterUid));
-  }, [chapters, selectedChapterIds]);
+    return processedChapters.filter(c => c.notes.length === 0 || selectedChapterIds.has(c.chapterUid));
+  }, [processedChapters, selectedChapterIds]);
 
   const handleExport = () => {
     const filteredChapters = getFilteredChapters();
@@ -452,7 +468,7 @@ const App: React.FC = () => {
             <div>
               <h1 className="text-xl font-bold text-gray-900">{errorHandler.getUIText('title')}</h1>
               <p className="text-sm text-gray-600 font-medium">
-                {chapters.length} {errorHandler.getUIText('chaptersFound')} • {chapters.reduce((sum, ch) => sum + (ch.notes?.length || 0), 0)} {errorHandler.getUIText('notesFound')}
+                {processedChapters.length} {errorHandler.getUIText('chaptersFound')} • {processedChapters.reduce((sum, ch) => sum + (ch.notes?.length || 0), 0)} {errorHandler.getUIText('notesFound')}
               </p>
             </div>
           </div>
@@ -517,12 +533,25 @@ const App: React.FC = () => {
           <div className="max-w-2xl mx-auto">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200/50 p-3 mb-3">
               <div className="flex justify-between items-center mb-3">
-                <h2 className="text-lg font-bold text-gray-900">{errorHandler.getUIText('selectChapters')}</h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-bold text-gray-900">{errorHandler.getUIText('selectChapters')}</h2>
+                  <label className="flex items-center gap-2 cursor-pointer bg-gray-50 hover:bg-blue-50 px-2.5 py-1.5 rounded-lg transition-colors border border-gray-100 group">
+                    <input
+                      type="checkbox"
+                      checked={exportConfig.removeDuplicates}
+                      onChange={e => setExportConfig({...exportConfig, removeDuplicates: e.target.checked})}
+                      className="w-3.5 h-3.5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                    />
+                    <span className="text-xs font-medium text-gray-600 group-hover:text-blue-700 transition-colors">
+                      {errorHandler.getUIText('removeDuplicateText')}
+                    </span>
+                  </label>
+                </div>
                 <button
                   onClick={toggleAll}
                   className="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
                 >
-                  {selectedChapterIds.size === chapters.filter(c => c.notes.length > 0).length ? errorHandler.getUIText('deselectAll') : errorHandler.getUIText('selectAll')}
+                  {selectedChapterIds.size === processedChapters.filter(c => c.notes.length > 0).length ? errorHandler.getUIText('deselectAll') : errorHandler.getUIText('selectAll')}
                 </button>
               </div>
               <div className="space-y-1.5">
@@ -643,9 +672,9 @@ const App: React.FC = () => {
             {/* Preview Card */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200/50 p-4">
               <h3 className="text-lg font-bold text-gray-900 mb-3">{errorHandler.getUIText('preview')}</h3>
-              <div className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg text-xs font-mono text-gray-600 border border-gray-200 overflow-hidden text-ellipsis whitespace-pre-wrap min-h-[60px]">
-                {chapters.length > 0 ? generateExportText(chapters.slice(0, 1), exportConfig) : errorHandler.getUIText('noNotesToPreview')}
-              </div>
+              <pre className="p-4 overflow-x-auto text-sm text-gray-800 whitespace-pre-wrap font-mono bg-gray-50 rounded-lg border border-gray-200">
+                {processedChapters.length > 0 ? generateExportText(processedChapters.slice(0, 1), exportConfig, bookTitle) : errorHandler.getUIText('noNotesToPreview')}
+              </pre>
             </div>
           </div>
         )}

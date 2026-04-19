@@ -39,6 +39,7 @@ export interface UIText {
   includeBookTitle: string;
   includeChapterHeaders: string;
   includeReferenceText: string;
+  removeDuplicateText: string;
   variables: string;
   noNotesToPreview: string;
   markdown: string;
@@ -88,6 +89,7 @@ export const translations: Record<Language['code'], { errors: ErrorMessages; ui:
       includeBookTitle: "包含书籍标题",
       includeChapterHeaders: "包含章节标题",
       includeReferenceText: "包含原文引用",
+      removeDuplicateText: "去除重复划线",
       variables: "变量",
       noNotesToPreview: "没有笔记可预览",
       markdown: "Markdown",
@@ -131,6 +133,7 @@ export const translations: Record<Language['code'], { errors: ErrorMessages; ui:
       includeBookTitle: "Include Book Title",
       includeChapterHeaders: "Include Chapter Headers",
       includeReferenceText: "Include Reference Text",
+      removeDuplicateText: "Remove Duplicates",
       variables: "Variables",
       noNotesToPreview: "No notes to preview",
       markdown: "Markdown",
