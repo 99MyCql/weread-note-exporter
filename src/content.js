@@ -13,6 +13,8 @@ const CSS_SELECTORS = {
   CATALOG_BUTTON: '.readerControls_item.catalog',
   CATALOG_CONTAINER: '.readerCatalog',
   CATALOG_LIST_ITEM: '.readerCatalog_list_item',
+  CATALOG_ITEM_INNER: '.readerCatalog_list_item_inner',
+  CATALOG_ITEM_TITLE: '.readerCatalog_list_item_title_text',
 };
 
 // 监听来自popup的消息
@@ -85,8 +87,24 @@ async function getCatalogOrder() {
     ? catalogContainer.querySelectorAll(CSS_SELECTORS.CATALOG_LIST_ITEM)
     : [];
 
-  const orderedTitles = Array.from(items).map(item => item.textContent?.trim() || '');
-  console.log(`目录顺序（共 ${orderedTitles.length} 章）:`, orderedTitles);
+  // 提取标题文本和层级
+  const catalogEntries = Array.from(items).map(item => {
+    const titleEl = item.querySelector(CSS_SELECTORS.CATALOG_ITEM_TITLE);
+    const title = titleEl ? titleEl.textContent?.trim() || '' : item.textContent?.trim() || '';
+
+    // 从内层 div 的 class 里读取层级，如：readerCatalog_list_item_level_2 -> 2
+    const innerEl = item.querySelector(CSS_SELECTORS.CATALOG_ITEM_INNER);
+    let level = 1;
+    if (innerEl) {
+      const levelMatch = innerEl.className.match(/readerCatalog_list_item_level_(\d+)/);
+      if (levelMatch) level = parseInt(levelMatch[1], 10);
+    }
+
+    return { title, level };
+  });
+
+  console.log(`目录顺序（共 ${catalogEntries.length} 章）:`,
+    catalogEntries.map(e => `[${e.level}] ${e.title}`));
 
   // 如果是我们主动打开的目录，用完后关闭
   if (needsClose) {
@@ -94,52 +112,91 @@ async function getCatalogOrder() {
     if (catalogBtn) catalogBtn.click();
   }
 
-  return orderedTitles.length > 0 ? orderedTitles : null;
+  return catalogEntries.length > 0 ? catalogEntries : null;
 }
 
 /**
  * 获取笔记并按目录顺序排序章节
+ * 同时为没有笔记的父级标题插入空节点，以支持多级目录展示
  */
 async function extractChapterNotesWithOrder() {
   // 并行：获取目录顺序 + 提取笔记
-  const [catalogOrder, chapters] = await Promise.all([
+  const [catalogEntries, chapters] = await Promise.all([
     getCatalogOrder(),
     Promise.resolve(extractChapterNotes())
   ]);
 
-  if (!catalogOrder || catalogOrder.length === 0) {
+  if (!catalogEntries || catalogEntries.length === 0) {
     console.log('未获取到目录顺序，返回原始章节顺序');
     return chapters;
   }
 
-  // 构建标题 -> 顺序的映射表
-  const orderMap = new Map();
-  catalogOrder.forEach((title, index) => {
-    if (title) orderMap.set(title, index);
-  });
-
-  // 按目录顺序排序章节（模糊匹配：先精确匹配，再检查包含关系）
-  const getSortIndex = (chapterTitle) => {
-    // 1. 精确匹配
-    if (orderMap.has(chapterTitle)) {
-      return orderMap.get(chapterTitle);
+  // 为模糊匹配建索引
+  const notesMap = new Map(chapters.map(c => [c.title, c]));
+  const findNoteChapter = (title) => {
+    if (notesMap.has(title)) return notesMap.get(title);
+    for (const [t, c] of notesMap) {
+      if (t.includes(title) || title.includes(t)) return c;
     }
-    // 2. 目录标题包含章节标题（处理目录中有些项比笔记面板中的标题更长的情况）
-    for (const [catalogTitle, idx] of orderMap) {
-      if (catalogTitle.includes(chapterTitle) || chapterTitle.includes(catalogTitle)) {
-        return idx;
-      }
-    }
-    // 3. 找不到则排在最后
-    return Infinity;
+    return null;
   };
 
-  const sorted = [...chapters].sort((a, b) => {
-    return getSortIndex(a.title) - getSortIndex(b.title);
+  // ---- 祖先标题按需补插算法 ----
+  // 遍历完整目录（已按真实顺序排列）：
+  //   - 无笔记的条目 → 存入 headerStack（各层级的最新标题）
+  //   - 有笔记的条目 → 先把 headerStack 中所有未输出的浅层祖先补出来，再输出本章节
+  const result = [];
+  const headerStack = new Map(); // level -> { entry, emitted }
+  let headerUidSeed = -1;
+  const emittedChapterUids = new Set();
+
+  for (const entry of catalogEntries) {
+    const matched = findNoteChapter(entry.title);
+
+    if (matched) {
+      // 补出所有未输出的祖先标题（level < 当前level，从浅到深）
+      const ancestorLevels = [...headerStack.keys()]
+        .filter(lvl => lvl < entry.level)
+        .sort((a, b) => a - b);
+
+      for (const lvl of ancestorLevels) {
+        const header = headerStack.get(lvl);
+        if (header && !header.emitted) {
+          result.push({
+            chapterUid: headerUidSeed--,
+            chapterIdx: 0,
+            title: header.entry.title,
+            level: lvl,
+            notes: [],
+          });
+          header.emitted = true;
+        }
+      }
+
+      // 输出本章节（避免重复）
+      if (!emittedChapterUids.has(matched.chapterUid)) {
+        result.push({ ...matched, level: entry.level });
+        emittedChapterUids.add(matched.chapterUid);
+      }
+    } else {
+      // 无笔记，存为潜在祖先标题
+      // 遇到同级或更浅的新标题时，清除旧的同级及深层标题（它们已不再是有效祖先）
+      for (const lvl of [...headerStack.keys()]) {
+        if (lvl >= entry.level) headerStack.delete(lvl);
+      }
+      headerStack.set(entry.level, { entry, emitted: false });
+    }
+  }
+
+  // 在目录中找不到对应项的有笔记章节，追加到末尾（兜底）
+  chapters.forEach(c => {
+    if (!emittedChapterUids.has(c.chapterUid)) result.push(c);
   });
 
-  console.log('按目录顺序排序后的章节:', sorted.map(c => c.title));
-  return sorted;
+  console.log('最终章节列表:', result.map(c =>
+    `[${'#'.repeat(c.level)}]${c.notes.length === 0 ? '(header)' : ''} ${c.title}`
+  ));
+  return result;
 }
 
 function extractChapterNotes() {
@@ -207,6 +264,7 @@ function extractChapterNotes() {
         chapterUid: chapterUid,
         chapterIdx: chapterIndex + 1,
         title: chapterTitle,
+        level: 1, // 默认层级，稍后由 extractChapterNotesWithOrder 根据目录覆盖
         notes: notes
       });
     }

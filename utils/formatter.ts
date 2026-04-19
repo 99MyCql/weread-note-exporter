@@ -9,9 +9,14 @@ export const generateExportText = (chapters: Chapter[], config: ExportConfig): s
 
     chapters.forEach((chapter, chapterIndex) => {
         // Add chapter header if enabled
+        // level 1 → ##（H2，书名占 H1）；level 2 → ###；以此类推
         if (config.includeChapter) {
-            output += `\n## ${chapter.title}\n\n`;
+            const headingMarks = '#'.repeat(chapter.level + 1);
+            output += `\n${headingMarks} ${chapter.title}\n\n`;
         }
+
+        // 纯标题节点（无笔记）不输出笔记内容，直接 continue
+        if (chapter.notes.length === 0) return;
 
         // Add notes for this chapter
         chapter.notes.forEach((note, noteIndex) => {

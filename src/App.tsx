@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Chapter, ExportConfig } from '../types';
 import { generateExportText } from '../utils/formatter';
 import { Loader2, Download, Settings, BookOpen, CheckSquare, Copy, Check, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
@@ -6,16 +6,110 @@ import { errorHandler } from './errorHandler';
 
 // --- Components ---
 
+/**
+ * 支持半选 indeterminate 状态的 checkbox
+ */
+const IndeterminateCheckbox: React.FC<{
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: () => void;
+  className?: string;
+}> = ({ checked, indeterminate, onChange, className }) => {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate && !checked;
+  }, [indeterminate, checked]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      onClick={(e) => e.stopPropagation()}
+      className={className}
+    />
+  );
+};
+
 const ChapterItem: React.FC<{
   chapter: Chapter;
   isSelected: boolean;
   isExpanded: boolean;
+  isCollapsed?: boolean;
+  // header 专属：子节点总笔记数、全选状态、半选状态
+  headerTotalNotes?: number;
+  headerAllSelected?: boolean;
+  headerSomeSelected?: boolean;
   onToggleSelect: (uid: number) => void;
   onToggleExpand: (uid: number) => void;
-}> = ({ chapter, isSelected, isExpanded, onToggleSelect, onToggleExpand }) => {
+  onToggleHeader?: (uid: number) => void;
+  onToggleHeaderSelect?: (uid: number) => void;
+}> = ({
+  chapter, isSelected, isExpanded, isCollapsed = false,
+  headerTotalNotes = 0, headerAllSelected = false, headerSomeSelected = false,
+  onToggleSelect, onToggleExpand, onToggleHeader, onToggleHeaderSelect
+}) => {
+  const isHeader = chapter.notes.length === 0;
+  const indentPx = (chapter.level - 1) * 16;
+
+  // 左边框颜色，按层级变化
+  const accentColors = [
+    'border-blue-500',
+    'border-violet-500',
+    'border-rose-400',
+    'border-amber-400',
+  ];
+  const accentColor = accentColors[Math.min(chapter.level - 1, accentColors.length - 1)];
+
+  // --- 父级标题节点 ---
+  if (isHeader) {
+    return (
+      <div
+        className={`bg-white rounded-lg border border-gray-200 border-l-4 ${accentColor} shadow-sm overflow-hidden`}
+        style={{ marginLeft: `${indentPx}px` }}
+      >
+        <div className="flex items-center gap-2.5 px-3 py-2.5">
+          {/* 公选框：支持半选状态 */}
+          <IndeterminateCheckbox
+            checked={headerAllSelected}
+            indeterminate={headerSomeSelected}
+            onChange={() => onToggleHeaderSelect?.(chapter.chapterUid)}
+            className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 flex-shrink-0"
+          />
+          {/* 点击标题区域切换折叠 */}
+          <div
+            className="flex-1 min-w-0 flex items-center justify-between gap-2 cursor-pointer"
+            onClick={() => onToggleHeader?.(chapter.chapterUid)}
+          >
+            <p className={`font-bold truncate ${
+              chapter.level === 1 ? 'text-sm text-gray-900' : 'text-xs text-gray-700'
+            }`}>
+              {chapter.title}
+            </p>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                {headerTotalNotes} {errorHandler.getUIText('notesCount')}
+              </span>
+              <div className={`transition-transform duration-200 ${
+                isCollapsed ? '-rotate-90' : 'rotate-0'
+              }`}>
+                <ChevronDown size={14} className="text-gray-400" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- 普通笔记节点 ---
   return (
-    <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-      {/* Chapter Header */}
+    <div
+      className={`bg-white rounded-lg border shadow-sm overflow-hidden ${
+        chapter.level > 1 ? 'border-gray-100' : 'border-gray-200'
+      }`}
+      style={{ marginLeft: `${indentPx}px` }}
+    >
       <div
         className="flex items-center gap-2 p-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
         onClick={() => onToggleExpand(chapter.chapterUid)}
@@ -28,11 +122,17 @@ const ChapterItem: React.FC<{
           onClick={(e) => e.stopPropagation()}
         />
         <div className="flex-1 min-w-0 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-gray-900 truncate">{chapter.title}</p>
+          <div className="min-w-0 flex-1">
+            <p className={`truncate ${
+              chapter.level > 1
+                ? 'text-xs font-medium text-gray-700'
+                : 'text-sm font-semibold text-gray-900'
+            }`}>
+              {chapter.title}
+            </p>
             <p className="text-xs text-gray-500 mt-0.5">{chapter.notes.length} {errorHandler.getUIText('notesCount')}</p>
           </div>
-          <div className={`transition-transform duration-200 ${
+          <div className={`transition-transform duration-200 flex-shrink-0 ml-2 ${
             isExpanded ? 'rotate-0' : '-rotate-90'
           }`}>
             <ChevronDown size={16} className="text-gray-400" />
@@ -40,17 +140,16 @@ const ChapterItem: React.FC<{
         </div>
       </div>
 
-      {/* Notes Content */}
       {isExpanded && (
-        <div className="border-t border-gray-200 p-2.5 space-y-1.5">
-          {chapter.notes.map((note, noteIndex) => (
+        <div className="border-t border-gray-100 p-2.5 space-y-1.5">
+          {chapter.notes.map((note) => (
             <div key={note.noteId} className="bg-gray-50 rounded-lg p-2 text-sm">
               <p className="text-xs text-gray-400 mb-1">
                 {new Date(note.createTime).toLocaleDateString()}
               </p>
               <p className="text-gray-800 leading-relaxed">{note.content}</p>
               {note.quote && (
-                <div className="mt-1.5 p-2 bg-blue-50 rounded border border-blue-200 text-xs">
+                <div className="mt-1.5 p-2 bg-blue-50 rounded border border-blue-100 text-xs">
                   <p className="text-blue-700">原文: {note.quote}</p>
                 </div>
               )}
@@ -62,6 +161,7 @@ const ChapterItem: React.FC<{
   );
 };
 
+
 const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +172,37 @@ const App: React.FC = () => {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [selectedChapterIds, setSelectedChapterIds] = useState<Set<number>>(new Set());
   const [expandedChapters, setExpandedChapters] = useState<Set<number>>(new Set());
+  const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
+
+  // 预计算每个 header 的子节点集合和总笔记数
+  const headerStats = useMemo(() => {
+    const stats = new Map<number, { totalNotes: number; childUids: Set<number> }>();
+    // 每次遇到 header，将其后续的有笔记项累计进所有祖先 header
+    const activeHeaders: { uid: number; level: number }[] = [];
+
+    for (const chapter of chapters) {
+      // 清除同级及更深的斧头（层级变浅时子级失效）
+      while (activeHeaders.length > 0 && activeHeaders[activeHeaders.length - 1].level >= chapter.level) {
+        activeHeaders.pop();
+      }
+
+      if (chapter.notes.length === 0) {
+        // 是 header，初始化统计
+        stats.set(chapter.chapterUid, { totalNotes: 0, childUids: new Set() });
+        activeHeaders.push({ uid: chapter.chapterUid, level: chapter.level });
+      } else {
+        // 是笔记项，累加到所有祖先 header
+        for (const h of activeHeaders) {
+          const stat = stats.get(h.uid);
+          if (stat) {
+            stat.totalNotes += chapter.notes.length;
+            stat.childUids.add(chapter.chapterUid);
+          }
+        }
+      }
+    }
+    return stats;
+  }, [chapters]);
   
   // Export Config
   const [exportConfig, setExportConfig] = useState<ExportConfig>({
@@ -173,16 +304,67 @@ const App: React.FC = () => {
     setExpandedChapters(newSet);
   };
 
+  const toggleHeader = (uid: number) => {
+    const newSet = new Set(collapsedHeaders);
+    if (newSet.has(uid)) newSet.delete(uid); else newSet.add(uid);
+    setCollapsedHeaders(newSet);
+  };
+
+  // 点击 header 的 checkbox：全选或全不选其子节点
+  const toggleHeaderSelect = (uid: number) => {
+    const stat = headerStats.get(uid);
+    if (!stat || stat.childUids.size === 0) return;
+    const allSelected = [...stat.childUids].every(cid => selectedChapterIds.has(cid));
+    const newSet = new Set(selectedChapterIds);
+    if (allSelected) {
+      stat.childUids.forEach(cid => newSet.delete(cid));
+    } else {
+      stat.childUids.forEach(cid => newSet.add(cid));
+    }
+    setSelectedChapterIds(newSet);
+  };
+
   const toggleAll = () => {
-    if (selectedChapterIds.size === chapters.length) {
+    const notesChapters = chapters.filter(c => c.notes.length > 0);
+    if (selectedChapterIds.size === notesChapters.length) {
       setSelectedChapterIds(new Set());
     } else {
-      setSelectedChapterIds(new Set(chapters.map(c => c.chapterUid)));
+      setSelectedChapterIds(new Set(notesChapters.map(c => c.chapterUid)));
     }
   };
 
+  // 计算可见章节列表：折叠的 header 会隐藏其后所有 level 更深的子项
+  const visibleChapters = useCallback((): Chapter[] => {
+    const result: Chapter[] = [];
+    // 记录当前正被折叠的各层级 header（level -> true）
+    const collapsedAtLevel = new Map<number, boolean>();
+
+    for (const chapter of chapters) {
+      // 清除比当前层级更深的折叠状态（遇到同级或更浅的新节点时，子级折叠失效）
+      for (const [lvl] of collapsedAtLevel) {
+        if (lvl >= chapter.level) collapsedAtLevel.delete(lvl);
+      }
+
+      // 检查当前节点是否被某个祖先 header 折叠
+      let hidden = false;
+      for (const [lvl] of collapsedAtLevel) {
+        if (lvl < chapter.level) { hidden = true; break; }
+      }
+      if (hidden) continue;
+
+      result.push(chapter);
+
+      // 如果是被折叠的 header，记录其层级
+      if (chapter.notes.length === 0 && collapsedHeaders.has(chapter.chapterUid)) {
+        collapsedAtLevel.set(chapter.level, true);
+      }
+    }
+    return result;
+  }, [chapters, collapsedHeaders]);
+
   const getFilteredChapters = useCallback(() => {
-    return chapters.filter(c => selectedChapterIds.has(c.chapterUid));
+    // 导出时不受折叠影响，仅按勾选过滤（header 节点透传给 formatter 处理）
+    return chapters.filter(c => c.notes.length === 0 || selectedChapterIds.has(c.chapterUid));
   }, [chapters, selectedChapterIds]);
 
   const handleExport = () => {
@@ -334,20 +516,35 @@ const App: React.FC = () => {
                   onClick={toggleAll}
                   className="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
                 >
-                  {selectedChapterIds.size === chapters.length ? errorHandler.getUIText('deselectAll') : errorHandler.getUIText('selectAll')}
+                  {selectedChapterIds.size === chapters.filter(c => c.notes.length > 0).length ? errorHandler.getUIText('deselectAll') : errorHandler.getUIText('selectAll')}
                 </button>
               </div>
               <div className="space-y-1.5">
-                {chapters.map(chapter => (
-                  <ChapterItem
-                    key={chapter.chapterUid}
-                    chapter={chapter}
-                    isSelected={selectedChapterIds.has(chapter.chapterUid)}
-                    isExpanded={expandedChapters.has(chapter.chapterUid)}
-                    onToggleSelect={toggleChapter}
-                    onToggleExpand={toggleExpanded}
-                  />
-                ))}
+                {visibleChapters().map(chapter => {
+                  const stat = headerStats.get(chapter.chapterUid);
+                  const isHeader = chapter.notes.length === 0;
+                  const headerAllSelected = isHeader && !!stat && stat.childUids.size > 0
+                    && [...stat.childUids].every(cid => selectedChapterIds.has(cid));
+                  const headerSomeSelected = isHeader && !!stat
+                    && [...stat.childUids].some(cid => selectedChapterIds.has(cid))
+                    && !headerAllSelected;
+                  return (
+                    <ChapterItem
+                      key={chapter.chapterUid}
+                      chapter={chapter}
+                      isSelected={selectedChapterIds.has(chapter.chapterUid)}
+                      isExpanded={expandedChapters.has(chapter.chapterUid)}
+                      isCollapsed={collapsedHeaders.has(chapter.chapterUid)}
+                      headerTotalNotes={stat?.totalNotes}
+                      headerAllSelected={headerAllSelected}
+                      headerSomeSelected={headerSomeSelected}
+                      onToggleSelect={toggleChapter}
+                      onToggleExpand={toggleExpanded}
+                      onToggleHeader={toggleHeader}
+                      onToggleHeaderSelect={toggleHeaderSelect}
+                    />
+                  );
+                })}
               </div>
             </div>
           </div>
