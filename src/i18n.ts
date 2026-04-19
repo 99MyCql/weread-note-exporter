@@ -35,6 +35,7 @@ export interface UIText {
   exportFile: string;
   options: string;
   template: string;
+  noteTemplateProps: string;
   preview: string;
   includeBookTitle: string;
   includeChapterHeaders: string;
@@ -73,8 +74,8 @@ export const translations: Record<Language['code'], { errors: ErrorMessages; ui:
       connecting: "正在连接微信读书...",
       connectionError: "连接错误",
       retry: "重试",
-      notesTab: "笔记",
-      formatTab: "格式",
+      notesTab: "选择章节",
+      formatTab: "导出格式",
       selectChapters: "选择章节",
       selectAll: "全选",
       deselectAll: "取消全选",
@@ -85,6 +86,7 @@ export const translations: Record<Language['code'], { errors: ErrorMessages; ui:
       exportFile: "导出文件",
       options: "选项",
       template: "模板",
+      noteTemplateProps: "每条笔记的格式模板",
       preview: "预览（首条笔记）",
       includeBookTitle: "包含书籍标题",
       includeChapterHeaders: "包含章节标题",
@@ -117,8 +119,8 @@ export const translations: Record<Language['code'], { errors: ErrorMessages; ui:
       connecting: "Connecting to WeRead...",
       connectionError: "Connection Error",
       retry: "Retry",
-      notesTab: "Notes",
-      formatTab: "Format",
+      notesTab: "Select Chapters",
+      formatTab: "Export Format",
       selectChapters: "Select Chapters",
       selectAll: "Select All",
       deselectAll: "Deselect All",
@@ -129,6 +131,7 @@ export const translations: Record<Language['code'], { errors: ErrorMessages; ui:
       exportFile: "Export File",
       options: "Options",
       template: "Template",
+      noteTemplateProps: "Per-Note Format Template",
       preview: "Preview (First Note)",
       includeBookTitle: "Include Book Title",
       includeChapterHeaders: "Include Chapter Headers",

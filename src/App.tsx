@@ -587,94 +587,83 @@ const App: React.FC = () => {
 
         {/* Tab: Export Settings */}
         {currentTab === 'export' && (
-          <div className="max-w-2xl mx-auto space-y-4">
-            {/* Options Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200/50 p-4">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Settings size={18} className="text-blue-600" />
-                {errorHandler.getUIText('options')}
-              </h3>
-              <div className="space-y-3">
-                <label className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors group">
-                  <input
-                    type="checkbox"
-                    checked={exportConfig.includeTitle}
-                    onChange={e => setExportConfig({...exportConfig, includeTitle: e.target.checked})}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                  />
-                  <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700 transition-colors">
-                    {errorHandler.getUIText('includeBookTitle')}
-                  </span>
-                </label>
-                <label className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-blue-50 transition-colors group">
-                  <input
-                    type="checkbox"
-                    checked={exportConfig.includeChapter}
-                    onChange={e => setExportConfig({...exportConfig, includeChapter: e.target.checked})}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                  />
-                  <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700 transition-colors">
-                    {errorHandler.getUIText('includeChapterHeaders')}
-                  </span>
-                </label>
-                <label className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-blue-50 transition-colors group">
-                  <input
-                    type="checkbox"
-                    checked={exportConfig.includeReference}
-                    onChange={e => setExportConfig({...exportConfig, includeReference: e.target.checked})}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                  />
-                  <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700 transition-colors">
-                    {errorHandler.getUIText('includeReferenceText')}
-                  </span>
-                </label>
+          <div className="max-w-2xl mx-auto flex flex-col gap-4 py-2 px-1">
+            
+            {/* Preview Section - Top */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200/60 flex flex-col overflow-hidden leading-snug">
+              <div className="bg-gray-50/80 px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{errorHandler.getUIText('preview')}</span>
               </div>
+              <pre className="p-4 overflow-x-auto text-sm text-gray-700 whitespace-pre-wrap font-mono max-h-[35vh] overflow-y-auto">
+                {(() => {
+                  const previewChapter = processedChapters.find(c => selectedChapterIds.has(c.chapterUid) && c.notes && c.notes.length > 0);
+                  const singleNoteChapter = previewChapter ? { ...previewChapter, notes: [previewChapter.notes[0]] } : null;
+                  return singleNoteChapter ? generateExportText([singleNoteChapter], exportConfig, bookTitle) : errorHandler.getUIText('noNotesToPreview');
+                })()}
+              </pre>
             </div>
 
-            {/* Template Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200/50 p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-gray-900">{errorHandler.getUIText('template')}</h3>
+            {/* Quick Toggles */}
+            <div className="flex items-center gap-6 px-1 mt-1 tracking-tight">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={exportConfig.includeTitle}
+                  onChange={e => setExportConfig({...exportConfig, includeTitle: e.target.checked})}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700 transition cursor-pointer">
+                  {errorHandler.getUIText('includeBookTitle')}
+                </span>
+              </label>
+              
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={exportConfig.includeChapter}
+                  onChange={e => setExportConfig({...exportConfig, includeChapter: e.target.checked})}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700 transition cursor-pointer">
+                  {errorHandler.getUIText('includeChapterHeaders')}
+                </span>
+              </label>
+            </div>
+
+            {/* Template Section */}
+            <div className="flex flex-col gap-2 mt-2">
+              <div className="flex items-center justify-between flex-wrap gap-x-4 gap-y-2 px-1">
+                <span className="text-sm font-bold text-gray-800 shrink-0">{errorHandler.getUIText('noteTemplateProps')}：</span>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setExportConfig({...exportConfig, formatStr: '- {{createTime}}\n{{content}}\n  > 原文：{{reference}}'})}
-                    className="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-blue-100 hover:text-blue-700 rounded-lg transition-colors"
+                    className="px-2 py-1 text-[11px] font-medium bg-white hover:bg-blue-50 hover:text-blue-700 border border-gray-200 hover:border-blue-200 rounded transition-colors shadow-sm"
                   >
                     {errorHandler.getUIText('markdown')}
                   </button>
                   <button
                     onClick={() => setExportConfig({...exportConfig, formatStr: '{{content}}\n原文: {{reference}}\n(Date: {{createTime}})'})}
-                    className="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-blue-100 hover:text-blue-700 rounded-lg transition-colors"
+                    className="px-2 py-1 text-[11px] font-medium bg-white hover:bg-blue-50 hover:text-blue-700 border border-gray-200 hover:border-blue-200 rounded transition-colors shadow-sm"
                   >
                     {errorHandler.getUIText('simple')}
                   </button>
                   <button
                     onClick={() => setExportConfig({...exportConfig, formatStr: '- {{content}}'})}
-                    className="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-blue-100 hover:text-blue-700 rounded-lg transition-colors"
+                    className="px-2 py-1 text-[11px] font-medium bg-white hover:bg-blue-50 hover:text-blue-700 border border-gray-200 hover:border-blue-200 rounded transition-colors shadow-sm"
                   >
                     {errorHandler.getUIText('list')}
                   </button>
                 </div>
               </div>
-              <div className="space-y-2">
-                <p className="text-xs text-gray-500 font-medium bg-blue-50 p-3 rounded-lg">
-                  {errorHandler.getUIText('variables')}: {'{{content}}'}, {'{{createTime}}'}, {'{{chapter}}'}, {'{{reference}}'}
-                </p>
-                <textarea
-                  value={exportConfig.formatStr}
-                  onChange={e => setExportConfig({...exportConfig, formatStr: e.target.value})}
-                  className="w-full h-32 p-4 text-sm border-2 border-gray-200 rounded-xl font-mono text-gray-700 bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none resize-y transition-all"
-                  placeholder="输入自定义模板..."
-                />
-              </div>
-            </div>
-
-            {/* Preview Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200/50 p-4">
-              <h3 className="text-lg font-bold text-gray-900 mb-3">{errorHandler.getUIText('preview')}</h3>
-              <pre className="p-4 overflow-x-auto text-sm text-gray-800 whitespace-pre-wrap font-mono bg-gray-50 rounded-lg border border-gray-200">
-                {processedChapters.length > 0 ? generateExportText(processedChapters.slice(0, 1), exportConfig, bookTitle) : errorHandler.getUIText('noNotesToPreview')}
-              </pre>
+              <textarea
+                value={exportConfig.formatStr}
+                onChange={e => setExportConfig({...exportConfig, formatStr: e.target.value})}
+                className="w-full h-28 p-3 text-sm border border-gray-200 rounded-lg font-mono text-gray-700 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y transition-all shadow-sm"
+                placeholder="输入自定义模板..."
+              />
+              <p className="text-[11px] text-gray-500 px-1 font-medium mt-1">
+                {errorHandler.getUIText('variables')}: <span className="font-mono bg-gray-100 text-gray-600 px-1 py-0.5 rounded">{'{{content}}'}</span> <span className="font-mono bg-gray-100 text-gray-600 px-1 py-0.5 rounded">{'{{createTime}}'}</span> <span className="font-mono bg-gray-100 text-gray-600 px-1 py-0.5 rounded">{'{{reference}}'}</span>
+              </p>
             </div>
           </div>
         )}
