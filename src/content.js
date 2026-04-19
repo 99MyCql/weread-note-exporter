@@ -15,20 +15,33 @@ const CSS_SELECTORS = {
   CATALOG_LIST_ITEM: '.readerCatalog_list_item',
   CATALOG_ITEM_INNER: '.readerCatalog_list_item_inner',
   CATALOG_ITEM_TITLE: '.readerCatalog_list_item_title_text',
+  // 书名选择器
+  BOOK_TITLE: '.readerCatalog_bookInfo_title_txt',
 };
+
+/**
+ * 获取书名：优先从目录侧边栏读取，兜底用 document.title
+ */
+function getBookTitle() {
+  const el = document.querySelector(CSS_SELECTORS.BOOK_TITLE);
+  if (el && el.textContent.trim()) return el.textContent.trim();
+  // 兜底：从 "书名 - 作者 - 微信读书" 格式的 document.title 提取
+  return document.title.split(' - ')[0].trim() || 'Reading Notes';
+}
 
 // 监听来自popup的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('收到消息:', request);
 
   if (request.action === 'extractNotes') {
+    const bookTitle = getBookTitle();
     // 使用异步流程：先获取目录顺序，再提取并排序笔记
-    extractChapterNotesWithOrder().then(result => {
-      sendResponse(result);
+    extractChapterNotesWithOrder().then(chapters => {
+      sendResponse({ bookTitle, chapters });
     }).catch(err => {
       console.error('提取笔记失败:', err);
       // 降级：直接返回未排序的笔记
-      sendResponse(extractChapterNotes());
+      sendResponse({ bookTitle, chapters: extractChapterNotes() });
     });
     return true; // 保持消息通道开放（异步必须）
   }

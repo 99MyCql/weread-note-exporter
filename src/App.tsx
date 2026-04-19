@@ -170,6 +170,7 @@ const App: React.FC = () => {
   const [copied, setCopied] = useState<boolean>(false);
   
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [bookTitle, setBookTitle] = useState<string>('Reading Notes');
   const [selectedChapterIds, setSelectedChapterIds] = useState<Set<number>>(new Set());
   const [expandedChapters, setExpandedChapters] = useState<Set<number>>(new Set());
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
@@ -265,15 +266,18 @@ const App: React.FC = () => {
         throw errorHandler.createUserError(errorHandler.getErrorText('extractNotesFailed'));
       }
 
-      const fetchedChapters = response;
+      const { bookTitle: fetchedTitle, chapters: fetchedChapters } = response;
 
+      setBookTitle(fetchedTitle || 'Reading Notes');
       setChapters(fetchedChapters);
 
-      // Select all chapters by default
-      const allChapterIds = new Set(fetchedChapters.map((c: Chapter) => c.chapterUid));
-      setSelectedChapterIds(allChapterIds as Set<number>);
+      // 默认选中所有有笔记的章节
+      const notesChapterIds = new Set(fetchedChapters
+        .filter((c: Chapter) => c.notes.length > 0)
+        .map((c: Chapter) => c.chapterUid));
+      setSelectedChapterIds(notesChapterIds as Set<number>);
 
-      // Keep all chapters collapsed by default
+      // 默认全部折叠
       setExpandedChapters(new Set());
 
     } catch (err: any) {
@@ -369,22 +373,24 @@ const App: React.FC = () => {
 
   const handleExport = () => {
     const filteredChapters = getFilteredChapters();
-    const text = generateExportText(filteredChapters, exportConfig);
-    
+    const text = generateExportText(filteredChapters, exportConfig, bookTitle);
+
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `weread-notes.${exportConfig.fileFormat === 'markdown' ? 'md' : 'txt'}`;
+    // 文件名使用真实书名（去掉不合法文件名字符）
+    const safeTitle = bookTitle.replace(/[/\\:*?"<>|]/g, '_');
+    a.download = `${safeTitle}.${exportConfig.fileFormat === 'markdown' ? 'md' : 'txt'}`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleCopy = async () => {
-    if (copied) return; // 防止重复点击
+    if (copied) return;
 
     const filteredChapters = getFilteredChapters();
-    const text = generateExportText(filteredChapters, exportConfig);
+    const text = generateExportText(filteredChapters, exportConfig, bookTitle);
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);

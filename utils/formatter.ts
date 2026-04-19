@@ -1,10 +1,10 @@
 import { Note, Chapter, ExportConfig } from '../types';
 
-export const generateExportText = (chapters: Chapter[], config: ExportConfig): string => {
+export const generateExportText = (chapters: Chapter[], config: ExportConfig, bookTitle = 'Reading Notes'): string => {
     let output = '';
 
     if (config.includeTitle) {
-        output += `# Reading Notes\n\n`;
+        output += `# ${bookTitle}\n\n`;
     }
 
     chapters.forEach((chapter, chapterIndex) => {
